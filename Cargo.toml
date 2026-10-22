@@ -1,0 +1,56 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/core",
+    "crates/media",
+    "crates/stt",
+    "crates/cleanup",
+    "crates/segment",
+    "crates/translate",
+    "crates/export",
+    "crates/store",
+    "crates/pipeline",
+    "crates/cli",
+]
+
+[workspace.package]
+version = "1.0.0"
+license = "MIT"
+edition = "2021"
+
+[workspace.dependencies]
+# internal crates (dependency direction: core <- everything)
+subtitler-core = { path = "crates/core" }
+subtitler-media = { path = "crates/media" }
+subtitler-stt = { path = "crates/stt" }
+subtitler-cleanup = { path = "crates/cleanup" }
+subtitler-segment = { path = "crates/segment" }
+subtitler-store = { path = "crates/store" }
+subtitler-translate = { path = "crates/translate" }
+subtitler-export = { path = "crates/export" }
+subtitler-pipeline = { path = "crates/pipeline" }
+
+# serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+schemars = "1"
+base64 = "0.22"
+toml = "0.8"
+unicode-segmentation = "1"
+
+# errors: thiserror in libs, anyhow only in binaries (§4.1)
+thiserror = "2"
+anyhow = "1"
+
+# storage / caching (§11)
+sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "sqlite"] }
+blake3 = "1"
+
+# async / runtime
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "process", "fs", "io-util", "time", "sync", "signal"] }
+tokio-util = { version = "0.7", features = ["rt"] }
+async-trait = "0.1"
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json", "multipart"] }
+
+# cli
+clap = { version = "4", features = ["derive"] }

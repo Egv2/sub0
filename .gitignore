@@ -1,0 +1,13 @@
+target/
+/data
+/docs/spike-data
+.env
+.DS_Store
+.env
+/test-video.mp4
+node_modules/
+app/ui/dist/
+.omo
+# internal notes
+/plan.md
+/PROJECT_PLAN.md

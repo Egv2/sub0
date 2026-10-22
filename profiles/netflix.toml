@@ -1,0 +1,21 @@
+# Netflix-style subtitle profile.
+#
+# Every number is a configurable default tagged [Likely]/[Verify]; none are
+# hardcoded in stage code (§17.5). Provenance lives in docs/standards.md;
+# re-verify against the current Netflix Timed Text Style Guide
+# (https://partner.help.netflix.com/en/node/249) before trusting output.
+# Frame-based limits assume 24 fps (frame equivalents kept as comments).
+
+[profile]
+name = "netflix"
+max_lines = 2
+max_chars_per_line = 42        # [Likely] Latin-script default
+max_cps = 17.0                 # [Likely] adult programming
+min_duration_ms = 833          # [Likely] 20 frames @ 24 fps (5/6 s)
+max_duration_ms = 7000         # [Likely]
+min_gap_ms = 83                # [Likely] 2 frames @ 24 fps
+pause_split_ms = 500           # [Verify] tune on real data
+
+# Per-language overrides stack on top of [profile] (Phase 4):
+# [languages.ja]
+# max_chars_per_line = 13      # [Verify] against Netflix Japanese guide

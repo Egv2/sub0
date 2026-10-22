@@ -1,0 +1,10 @@
+{
+  "name": "sub0-app",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "dev": "tauri dev --additional-watch-folders ../../crates",
+    "build": "tauri build",
+    "tauri": "tauri"
+  }
+}

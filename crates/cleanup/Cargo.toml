@@ -1,0 +1,16 @@
+[package]
+name = "subtitler-cleanup"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+subtitler-core = { workspace = true }
+subtitler-translate = { workspace = true }
+subtitler-store = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+async-trait = { workspace = true }
+tokio = { workspace = true }

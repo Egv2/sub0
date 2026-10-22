@@ -1,0 +1,10 @@
+[package]
+name = "subtitler-export"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+subtitler-core = { workspace = true }
+serde = { workspace = true }
+thiserror = { workspace = true }
+unicode-segmentation = { workspace = true }

@@ -1,0 +1,14 @@
+[package]
+name = "subtitler-media"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+subtitler-core = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+silero = "0.7"
+# silero 0.7 does not build against ort rc.13+ (Session::builder signature).
+ort = "=2.0.0-rc.12"

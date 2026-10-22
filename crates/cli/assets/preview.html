@@ -1,0 +1,268 @@
+<!doctype html>
+<!-- Subtitler preview template (shared by `spike --preview` and `run --preview`).
+     The generator injects the artifact JSON at __SPIKE_DATA__ and writes this
+     file to <out>/preview.html. Data is embedded inline so the page works
+     from file:// with no server. Tracks are generic panels: STT providers
+     (with request stats + word karaoke) or source/translation cues. -->
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Subtitler — Önizleme</title>
+<style>
+  :root { color-scheme: dark; --bg:#0e1116; --panel:#161b23; --line:#232a35;
+          --fg:#e8edf4; --muted:#8b96a5; --hl:#ffd54a; --warn:#ff9d66; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg);
+         font:14px/1.45 -apple-system,"SF Pro Text","Segoe UI",Roboto,sans-serif; }
+  header { display:flex; flex-wrap:wrap; gap:10px; align-items:center;
+           padding:10px 16px; border-bottom:1px solid var(--line); }
+  h1 { font-size:15px; margin:0 12px 0 0; font-weight:600; }
+  .chip { background:var(--panel); border:1px solid var(--line); border-radius:8px;
+          padding:4px 10px; font-size:12px; color:var(--muted); }
+  .chip b { color:var(--fg); font-weight:600; }
+  label.tog { display:inline-flex; gap:6px; align-items:center; cursor:pointer;
+              font-size:13px; padding:4px 8px; border:1px solid var(--line);
+              border-radius:8px; user-select:none; }
+  label.tog input { accent-color: var(--muted); }
+  main { display:grid; grid-template-columns:minmax(0,1fr) 380px;
+         height:calc(100vh - 55px); }
+  @media (max-width: 900px) { main { grid-template-columns:1fr; } aside { display:none; } }
+  .video-wrap { position:relative; background:#000; width:100%; height:100%; }
+  video { width:100%; height:100%; object-fit:contain; }
+  .caps { position:absolute; left:0; right:0; bottom:60px; display:flex;
+          flex-direction:column; gap:8px; align-items:center; padding:0 16px;
+          pointer-events:none; }
+  .cap { max-width:92%; background:rgba(10,12,16,.85); border:1px solid var(--line);
+         border-left:4px solid var(--accent,#8b96a5); border-radius:10px; padding:7px 12px;
+         font-size:17px; line-height:1.55; text-align:center; display:none; }
+  .cap.on { display:block; }
+  .cap .badge { display:inline-block; font-size:10px; letter-spacing:.08em;
+                text-transform:uppercase; color:var(--accent,#8b96a5); margin-bottom:2px; }
+  .cap .warn { color:var(--warn); font-size:10px; text-transform:none; letter-spacing:0; }
+  .cap w { border-radius:4px; padding:0 1px; }
+  .cap w.cur { background:var(--hl); color:#111; }
+  .vtt { position:absolute; top:10px; right:10px; display:flex; gap:8px; }
+  button { background:var(--panel); color:var(--fg); border:1px solid var(--line);
+           border-radius:8px; padding:6px 10px; font-size:12px; cursor:pointer; }
+  button:hover { border-color:var(--muted); }
+  aside { border-left:1px solid var(--line); display:flex; flex-direction:column; min-height:0; }
+  .tabs { display:flex; border-bottom:1px solid var(--line); flex-wrap:wrap; }
+  .tabs button { flex:1; border:0; border-radius:0; background:transparent;
+                 padding:10px 6px; color:var(--muted); font-weight:600; white-space:nowrap; }
+  .tabs button.act { color:var(--fg); box-shadow:inset 0 -2px 0 var(--fg); }
+  #list { overflow:auto; flex:1; }
+  .cue { padding:8px 12px; border-bottom:1px solid var(--line); cursor:pointer; }
+  .cue:hover { background:var(--panel); }
+  .cue.cur { background:#1c2430; box-shadow:inset 3px 0 0 var(--hl); }
+  .cue .t { font-size:11px; color:var(--muted); font-variant-numeric:tabular-nums; }
+  .cue .flag { color:var(--warn); font-size:10.5px; }
+  details.runs { border-top:1px solid var(--line); max-height:40%; overflow:auto; }
+  details.runs summary { cursor:pointer; padding:8px 12px; color:var(--muted); font-size:12px; }
+  table { width:100%; border-collapse:collapse; font-size:11.5px; margin-bottom:8px; }
+  th, td { padding:4px 8px; text-align:right; border-top:1px solid var(--line);
+           font-variant-numeric:tabular-nums; }
+  th:first-child, td:first-child { text-align:left; }
+  th { color:var(--muted); font-weight:500; position:sticky; top:0; background:var(--bg); }
+  .modenote { padding:4px 12px 8px; color:var(--muted); font-size:11.5px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Subtitler — Önizleme</h1>
+  <span id="toggles" style="display:flex;gap:8px;flex-wrap:wrap"></span>
+  <span id="chips" style="display:flex;gap:8px;flex-wrap:wrap"></span>
+</header>
+<main>
+  <div class="stage">
+    <div class="video-wrap">
+      <video id="v" controls playsinline></video>
+      <div class="caps" id="caps"></div>
+      <div class="vtt" id="vttbtns"></div>
+    </div>
+  </div>
+  <aside>
+    <div class="tabs" id="tabs"></div>
+    <div id="list"></div>
+    <details class="runs">
+      <summary>İstek dökümü (mod, gecikme, boyut)</summary>
+      <div id="runs"></div>
+    </details>
+  </aside>
+</main>
+<script>
+"use strict";
+const DATA = __SPIKE_DATA__;
+
+const $ = id => document.getElementById(id);
+const ACCENTS = ["#f55036", "#7c7cf8", "#4cd47c", "#ffcc4d", "#57c7ff", "#ff7ab6",
+                 "#a3e635", "#f472b6", "#38bdf8", "#fb923c"];
+const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const fmt = ms => {
+  ms = Math.max(0, ms|0);
+  const s = Math.floor(ms/1000), m = Math.floor(s/60);
+  return String(m).padStart(2,"0") + ":" + String(s%60).padStart(2,"0") + "." + Math.floor((ms%1000)/100);
+};
+const vttts = ms => {
+  const h = Math.floor(ms/3600000), m = Math.floor(ms/60000)%60,
+        s = Math.floor(ms/1000)%60, f = ms%1000;
+  return `${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}.${String(f).padStart(3,"0")}`;
+};
+
+const providers = DATA.providers.map((p, i) => {
+  const cues = p.cues.slice().sort((a,b) => a.start_ms - b.start_ms);
+  const words = p.words.slice().sort((a,b) => a.start_ms - b.start_ms);
+  // Assign word indices to cues: last cue starting at/before the word.
+  const cueWords = cues.map(() => []);
+  let ci = 0;
+  for (let wi = 0; wi < words.length; wi++) {
+    while (ci + 1 < cues.length && cues[ci+1].start_ms <= words[wi].start_ms) ci++;
+    cueWords[ci].push(wi);
+  }
+  const runs = p.runs || [];
+  const lat = runs.filter(r => r.latency_ms != null).map(r => r.latency_ms);
+  return { key:p.key, label:p.label, model:p.model, mode:p.mode, cues, words, cueWords,
+           runs, langs:p.langs || [], accent: ACCENTS[i % ACCENTS.length],
+           meanLat: lat.length ? Math.round(lat.reduce((a,b)=>a+b,0)/lat.length) : null };
+});
+
+// Build the per-track UI: toggles, caption panels, tabs, .vtt buttons.
+$("toggles").innerHTML = providers.map(p =>
+  `<label class="tog"><input type="checkbox" id="tog-${p.key}" checked> ${esc(p.label)}</label>`).join("");
+$("caps").innerHTML = providers.map(p =>
+  `<div class="cap" id="cap-${p.key}" style="--accent:${p.accent}"></div>`).join("");
+$("tabs").innerHTML = providers.map((p, i) =>
+  `<button id="tab-${p.key}" class="${i === 0 ? "act" : ""}" style="--accent:${p.accent}">${esc(p.label)}</button>`).join("");
+$("vttbtns").innerHTML = providers.map(p =>
+  `<button id="dl-${p.key}">${esc(p.label)} .vtt</button>`).join("");
+
+$("v").src = DATA.video;
+$("chips").innerHTML = providers.map(p => {
+  const flagged = p.cues.filter(c => c.flags.length).length;
+  return `<span class="chip" title="${esc(p.mode)}">${esc(p.label)}: <b>${p.cues.length}</b> cue` +
+    (flagged ? ` · <b style="color:var(--warn)">${flagged}</b> işaretli` : "") +
+    (p.meanLat ? ` · ort. <b>${(p.meanLat/1000).toFixed(1)} sn</b>` : "") +
+    (p.langs.length ? ` · <b>${esc(p.langs.join(", "))}</b>` : "") + `</span>`;
+}).join("");
+
+let active = providers[0] && providers[0].key;
+const lastCur = {};
+const visible = () => Object.fromEntries(providers.map(p => [p.key, $("tog-" + p.key).checked]));
+
+function cueIndexAt(p, t) {
+  let lo = 0, hi = p.cues.length - 1, ans = -1;
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    if (p.cues[mid].start_ms <= t) { ans = mid; lo = mid + 1; } else hi = mid - 1;
+  }
+  return ans;
+}
+
+function renderCap(p, t) {
+  const el = $("cap-" + p.key);
+  if (!el) return;
+  const i = cueIndexAt(p, t);
+  const show = visible()[p.key] && i >= 0 && t <= p.cues[i].end_ms;
+  if (!show) { el.classList.remove("on"); return; }
+  el.classList.add("on");
+  const cue = p.cues[i];
+  const flag = cue.flags.length ? ` <span class="warn">⚠ ${esc(cue.flags.join(", "))}</span>` : "";
+  const badge = `<span class="badge">${esc(p.label)} · ${esc(p.model)}${flag}</span><br>`;
+  const wis = p.cueWords[p.cues.indexOf(cue)] || [];
+  // Karaoke: cue text is built from exactly these words and lines split at
+  // spaces, so token sequences match — otherwise fall back to plain lines.
+  const tokens = cue.lines.flatMap(l => l.split(" ")).filter(x => x.length);
+  if (wis.length && tokens.length === wis.length) {
+    let k = 0;
+    el.innerHTML = badge + cue.lines.map(line =>
+      line.split(" ").map(tok => {
+        const w = p.words[wis[k++]];
+        const cur = w && t >= w.start_ms && t < w.end_ms;
+        return `<w class="${cur ? "cur" : ""}">${esc(tok)}</w>`;
+      }).join(" ")
+    ).join("<br>");
+  } else {
+    el.innerHTML = badge + esc(cue.lines.join("\n")).replace(/\n/g, "<br>");
+  }
+}
+
+function renderList() {
+  const p = providers.find(x => x.key === active);
+  $("list").innerHTML = p.cues.map((c, i) =>
+    `<div class="cue" data-i="${i}"><div class="t">${fmt(c.start_ms)} → ${fmt(c.end_ms)}` +
+    (c.flags.length ? ` <span class="flag">⚠ ${esc(c.flags.join(", "))}</span>` : "") +
+    `</div>${esc(c.lines.join(" "))}</div>`
+  ).join("");
+  lastCur[active] = -1;
+}
+
+function renderRuns() {
+  const withRuns = providers.filter(p => p.runs.length);
+  if (!withRuns.length) {
+    $("runs").innerHTML = providers.map(p =>
+      `<div class="modenote"><b>${esc(p.label)}</b> (${esc(p.model)}) — ${esc(p.mode)}</div>`).join("");
+    return;
+  }
+  $("runs").innerHTML = withRuns.map(p =>
+    `<div class="modenote"><b>${esc(p.label)}</b> (${esc(p.model)}) — ${esc(p.mode)}</div>` +
+    `<table><tr><th>#</th><th>aralık</th><th>MB</th><th>ms</th><th>kelime</th><th>hata</th></tr>` +
+    p.runs.map(r =>
+      `<tr><td>${r.index}</td><td>${fmt(r.start_ms)}–${fmt(r.end_ms)}</td>` +
+      `<td>${(r.bytes/1048576).toFixed(1)}</td><td>${r.latency_ms ?? "-"}</td>` +
+      `<td>${r.words}</td><td>${r.error ? esc(r.error) : "-"}</td></tr>`).join("") +
+    `</table>`).join("");
+}
+
+function toVtt(p) {
+  return "WEBVTT\n\n" + p.cues.map((c, i) =>
+    `${i+1}\n${vttts(c.start_ms)} --> ${vttts(c.end_ms)}\n${c.lines.join("\n")}\n`).join("\n");
+}
+
+for (const p of providers) {
+  $("dl-" + p.key).onclick = () => {
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([toVtt(p)], { type: "text/vtt" }));
+    a.download = p.label.replace(/[^\w-]+/g, "_") + ".vtt";
+    a.click();
+    URL.revokeObjectURL(a.href);
+  };
+  $("tab-" + p.key).onclick = () => {
+    active = p.key;
+    for (const q of providers) $("tab-" + q.key).classList.toggle("act", q.key === active);
+    renderList();
+  };
+}
+
+$("list").addEventListener("click", e => {
+  const c = e.target.closest(".cue");
+  if (!c) return;
+  const p = providers.find(x => x.key === active);
+  $("v").currentTime = p.cues[+c.dataset.i].start_ms / 1000;
+  $("v").play();
+});
+
+const video = $("v");
+function tick() {
+  const t = video.currentTime * 1000;
+  for (const p of providers) renderCap(p, t);
+  const p = providers.find(x => x.key === active);
+  if (!p) return;
+  const i = cueIndexAt(p, t);
+  if (i !== lastCur[active]) {
+    const kids = $("list").children;
+    if (lastCur[active] >= 0 && kids[lastCur[active]]) kids[lastCur[active]].classList.remove("cur");
+    if (i >= 0 && kids[i]) {
+      kids[i].classList.add("cur");
+      kids[i].scrollIntoView({ block: "nearest" });
+    }
+    lastCur[active] = i;
+  }
+  requestAnimationFrame(tick);
+}
+
+renderList();
+renderRuns();
+requestAnimationFrame(tick);
+</script>
+</body>
+</html>

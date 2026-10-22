@@ -1,0 +1,27 @@
+:root { --titlebar-h: 0px; }
+:root[data-platform="mac"] { --titlebar-h: 40px; }
+
+.titlebar {
+  position: fixed;
+  inset: 0 0 auto 0;
+  height: var(--titlebar-h);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--side);
+  user-select: none;
+  -webkit-user-select: none;
+}
+.titlebar-title {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--text-2);
+  opacity: 0.7;
+  pointer-events: none;
+}
+/* Padding, not margin: a margin would collapse through #root/body and push the
+ * 100%-high root down, overflowing the page and adding a second scrollbar. */
+#root { box-sizing: border-box; padding-top: var(--titlebar-h); }
+.shell { height: 100%; }

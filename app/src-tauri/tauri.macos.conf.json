@@ -1,0 +1,20 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "app": {
+    "windows": [
+      {
+        "title": "Sub0",
+        "width": 1280,
+        "height": 820,
+        "minWidth": 1020,
+        "minHeight": 660,
+        "resizable": true,
+        "visible": false,
+        "backgroundColor": "#0b0b0d",
+        "titleBarStyle": "Overlay",
+        "hiddenTitle": true,
+        "trafficLightPosition": { "x": 16, "y": 14 }
+      }
+    ]
+  }
+}
