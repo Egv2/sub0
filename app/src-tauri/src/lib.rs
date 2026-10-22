@@ -19,6 +19,7 @@ mod gc;
 
 
 /// Nearest ancestor containing `crates/` (dev CWD is `app/src-tauri`).
+/// Outside a checkout (an installed .app) this is the per-user app folder.
 /// `SUBTITLER_ROOT` overrides.
 fn repo_root() -> PathBuf {
     if let Ok(root) = std::env::var("SUBTITLER_ROOT") {
@@ -29,7 +30,59 @@ fn repo_root() -> PathBuf {
         .ancestors()
         .find(|p| p.join("crates").is_dir())
         .map(Path::to_path_buf)
-        .unwrap_or_else(|| PathBuf::from("."))
+        .unwrap_or_else(user_root)
+}
+
+/// `~/Library/Application Support/Sub0` on macOS, `$XDG_DATA_HOME/sub0` elsewhere.
+fn user_root() -> PathBuf {
+    let home = std::env::var_os("HOME").map(PathBuf::from).unwrap_or_else(|| PathBuf::from("."));
+    if cfg!(target_os = "macos") {
+        home.join("Library/Application Support/Sub0")
+    } else if let Some(xdg) = std::env::var_os("XDG_DATA_HOME") {
+        PathBuf::from(xdg).join("sub0")
+    } else {
+        home.join(".local/share/sub0")
+    }
+}
+
+/// The checkout's `prompts/` in development, otherwise the copy bundled as a resource.
+fn prompts_dir() -> PathBuf {
+    let local = repo_root().join("prompts");
+    if local.is_dir() {
+        return local;
+    }
+    std::env::current_exe()
+        .ok()
+        .and_then(|exe| exe.parent().map(Path::to_path_buf))
+        .map(|bin| {
+            if cfg!(target_os = "macos") {
+                bin.join("../Resources/prompts")
+            } else {
+                bin.join("prompts")
+            }
+        })
+        .filter(|p| p.is_dir())
+        .unwrap_or(local)
+}
+
+/// GUI apps launched from Finder get a minimal PATH without Homebrew,
+/// so ffmpeg/ffprobe/yt-dlp would not be found.
+fn extend_path() {
+    if !cfg!(target_os = "macos") {
+        return;
+    }
+    let mut paths: Vec<PathBuf> = std::env::var_os("PATH")
+        .map(|p| std::env::split_paths(&p).collect())
+        .unwrap_or_default();
+    for extra in ["/opt/homebrew/bin", "/usr/local/bin"] {
+        let extra = PathBuf::from(extra);
+        if !paths.contains(&extra) {
+            paths.push(extra);
+        }
+    }
+    if let Ok(joined) = std::env::join_paths(paths) {
+        std::env::set_var("PATH", joined);
+    }
 }
 
 fn data_dir() -> PathBuf {
@@ -203,7 +256,7 @@ impl UiSettings {
                 prompt_text: None,
                 max_deletion_ratio: self.cleanup_ratio,
             }),
-            prompts_dir: repo_root().join("prompts"),
+            prompts_dir: prompts_dir(),
             cache_path: Some(data_dir().join("store.db")),
             trim_start_ms: self.trim_start_secs * 1000,
             trim_end_ms: self.trim_end_secs * 1000,
@@ -1003,7 +1056,9 @@ fn reveal_path(path: String) -> Result<(), String> {
 
 
 pub fn run() {
+    extend_path();
     let root = repo_root();
+    std::fs::create_dir_all(root.join("data")).ok();
     std::env::set_current_dir(&root).ok();
     let store_path = data_dir().join("store.db");
 
