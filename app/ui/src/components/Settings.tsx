@@ -28,6 +28,7 @@ interface SettingsViewProps {
   /** Current subtitle appearance, shown live in the row preview. */
   subtitleStyle: SubtitleStyle;
   onEditSubtitleStyle: () => void;
+  onReplayTutorial: () => void;
 }
 
 /** One settings row: title and description on the left, control on the right. */
@@ -59,6 +60,7 @@ export default function SettingsView({
   onThemeChange,
   subtitleStyle,
   onEditSubtitleStyle,
+  onReplayTutorial,
 }: SettingsViewProps) {
   const pickOutputDir = async () => {
     // Starting point: opens at the current selection when it is a valid folder.
@@ -228,6 +230,11 @@ export default function SettingsView({
           </Row>
 
           <h2>Sağlayıcılar</h2>
+          <Row title="Kurulum rehberi" desc="Tanıtımı ve API anahtarı adımını yeniden aç.">
+            <button type="button" className="ghost btn-sm" onClick={onReplayTutorial}>
+              Rehberi aç
+            </button>
+          </Row>
           <Row title="Konuşma tanıma (STT)" desc="Sesi metne çeviren model.">
             <select
               className="ctl"

@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import type { JobRow, UiSettings } from "../types";
 import type { LogLine } from "../types";
-import { IconPlay } from "./icons";
+import { IconAlert, IconPlay } from "./icons";
 import ImportPanel from "./ImportPanel";
 import StatusCard from "./StatusCard";
 import JobList from "./JobList";
@@ -23,6 +23,8 @@ interface StudioProps {
   onDeleteJob: (job: JobRow) => void;
   onPatchSettings: (patch: Partial<UiSettings>) => void;
   onOpenSettings: () => void;
+  keyWarning: { title: string; text: string } | null;
+  onFixKeys: () => void;
 }
 
 export default function Studio({
@@ -41,6 +43,8 @@ export default function Studio({
   onDeleteJob,
   onPatchSettings,
   onOpenSettings,
+  keyWarning,
+  onFixKeys,
 }: StudioProps) {
   // Queued jobs live in the import card, everything else in the library.
   const waitingJobs = useMemo(() => jobs.filter((j) => j.status === "queued"), [jobs]);
@@ -64,6 +68,18 @@ export default function Studio({
           </button>
         </div>
       </header>
+      {keyWarning && (
+        <div className="key-banner" role="alert">
+          <IconAlert size={17} />
+          <span>
+            <strong>{keyWarning.title}</strong>
+            {keyWarning.text}
+          </span>
+          <button className="primary btn-sm" onClick={onFixKeys}>
+            Anahtarı ekle
+          </button>
+        </div>
+      )}
       <div className="bento">
         <ImportPanel waitingJobs={waitingJobs} onEnqueue={onEnqueue} onRemove={onRemoveJob} />
         <StatusCard

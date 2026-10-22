@@ -19,6 +19,10 @@ import SubtitleStyleModal from "./components/SubtitleStyleModal";
 import { useSubtitleStyle } from "./useSubtitleStyle";
 import Preview, { type TranslationNotice } from "./components/Preview";
 import SettingsView from "./components/Settings";
+import Onboarding from "./components/Onboarding";
+import { PROVIDER_NAME, missingKeys, useKeyStatus } from "./useKeyStatus";
+
+const ONBOARDED_KEY = "sub0.onboarded";
 
 export default function App() {
   const [ready, setReady] = useState(false);
@@ -122,24 +126,42 @@ export default function App() {
 
   useEffect(() => {
     void (async () => {
-      const startedAt = Date.now();
       const [s, j] = await Promise.all([
         api.loadSettings(),
         api.listJobs().catch(() => [] as JobRow[]),
       ]);
       setSettings(s);
       setJobs(j);
-      const elapsed = Date.now() - startedAt;
-      if (elapsed < 2000)
-        await new Promise((r) => setTimeout(r, 2000 - elapsed));
+      // The splash owns its minimum display time and reveals the window itself.
       setReady(true);
-      void notifyFrontendReady();
     })();
   }, []);
+
+  const { status: keys, reload: reloadKeys } = useKeyStatus();
+  const missing = settings
+    ? missingKeys(keys, settings.stt_provider, settings.llm_provider)
+    : { stt: null, llm: null };
+  const [onboarding, setOnboarding] = useState<null | "intro" | "keys">(() =>
+    localStorage.getItem(ONBOARDED_KEY) ? null : "intro",
+  );
+  const finishOnboarding = useCallback(() => {
+    localStorage.setItem(ONBOARDED_KEY, "1");
+    setOnboarding(null);
+    void reloadKeys();
+  }, [reloadKeys]);
+  // Keys may change in Settings; re-check whenever the view changes.
+  useEffect(() => {
+    void reloadKeys();
+  }, [view, reloadKeys]);
 
   const startQueue = useCallback(
     async (cfg: UiSettings | null) => {
       if (queueRunningRef.current) return;
+      if (missing.stt) {
+        logError(`${PROVIDER_NAME[missing.stt]} API anahtarı yok, kuyruk başlatılamadı`);
+        setOnboarding("keys");
+        return;
+      }
       setQueueRunning(true);
       setQueueFailed(false);
       try {
@@ -151,7 +173,7 @@ export default function App() {
         logError(String(e));
       }
     },
-    [logInfo, logError, setQueueRunning],
+    [logInfo, logError, setQueueRunning, missing.stt],
   );
 
   const enqueue = useCallback(
@@ -285,9 +307,9 @@ export default function App() {
     applyTheme(t);
   }, []);
 
-  if (!settings) {
-    return <Splash done={false} />;
-  }
+  // Same key in both returns so the splash (and its video) is never remounted.
+  const splash = <Splash key="splash" ready={ready} onVisible={() => void notifyFrontendReady()} />;
+  if (!settings) return <>{splash}</>;
 
   const selectedJob = jobs.find((j) => j.id === selectedJobId) ?? null;
   const queueState = queueRunningState
@@ -318,6 +340,20 @@ export default function App() {
             onDeleteJob={(job) => void deleteProject(job)}
             onPatchSettings={(patch) => void patchSettings(patch)}
             onOpenSettings={() => setView("settings")}
+            keyWarning={
+              missing.stt
+                ? {
+                    title: `${PROVIDER_NAME[missing.stt]} API anahtarı eksik.`,
+                    text: "Bu anahtar olmadan altyazı üretilemez.",
+                  }
+                : missing.llm && settings.translate
+                  ? {
+                      title: `${PROVIDER_NAME[missing.llm]} API anahtarı eksik.`,
+                      text: "Çeviri ve akıllı temizlik çalışmaz.",
+                    }
+                  : null
+            }
+            onFixKeys={() => setOnboarding("keys")}
           />
           {/* Preview landing: a selected job opens directly, otherwise the
             library screen offers the finished work. */}
@@ -411,10 +447,22 @@ export default function App() {
             onSave={(s) => setSettings(s)}
             theme={theme}
             onThemeChange={changeTheme}
+            onReplayTutorial={() => setOnboarding("intro")}
           />
         </main>
-        <Splash done={ready} />
       </div>
+      {onboarding && ready && (
+        <Onboarding
+          key="onboarding"
+          keys={keys}
+          sttProvider={settings.stt_provider}
+          llmProvider={settings.llm_provider}
+          startAtKeys={onboarding === "keys"}
+          onKeysChanged={() => void reloadKeys()}
+          onDone={finishOnboarding}
+        />
+      )}
+      {splash}
     </>
   );
 }

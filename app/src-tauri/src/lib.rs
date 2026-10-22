@@ -1025,6 +1025,24 @@ fn open_folder(path: String) -> Result<(), String> {
     result.map(|_| ()).map_err(|e| e.to_string())
 }
 
+/// Opens a provider's API key page. Only these fixed URLs can be opened.
+#[tauri::command]
+fn open_key_page(provider: String) -> Result<(), String> {
+    let url = match provider.as_str() {
+        "groq" => "https://console.groq.com/keys",
+        "openrouter" => "https://openrouter.ai/settings/keys",
+        _ => return Err("bilinmeyen sağlayıcı".into()),
+    };
+    let result = if cfg!(target_os = "macos") {
+        std::process::Command::new("open").arg(url).spawn()
+    } else if cfg!(target_os = "windows") {
+        std::process::Command::new("cmd").args(["/C", "start", "", url]).spawn()
+    } else {
+        std::process::Command::new("xdg-open").arg(url).spawn()
+    };
+    result.map(|_| ()).map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 fn reveal_path(path: String) -> Result<(), String> {
     let target = absolute(&path);
@@ -1125,6 +1143,7 @@ pub fn run() {
             save_settings,
             settings_path,
             open_folder,
+            open_key_page,
             create_batch,
             start_queue,
             cancel_queue,

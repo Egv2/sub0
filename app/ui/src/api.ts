@@ -60,6 +60,7 @@ export const api = {
   revealPath: (path: string) => invoke<void>("reveal_path", { path }),
   /** Opens the folder itself, unlike revealPath which selects it in its parent. */
   openFolder: (path: string) => invoke<void>("open_folder", { path }),
+  openKeyPage: (provider: "groq" | "openrouter") => invoke<void>("open_key_page", { provider }),
 };
 
 export const events = {

@@ -1,10 +1,11 @@
 // Browser-only design harness (npm run dev, then /dev.html): mock data, no Tauri.
-// Params: ?empty, ?view=settings, ?theme=<id>.
+// Params: ?empty, ?view=settings|onboarding, ?step=keys, ?keys=groq,openrouter, ?theme=<id>.
 import { createRoot } from "react-dom/client";
 import { DEFAULT_STYLE } from "./subtitleStyle";
 import Nav from "./components/Nav";
 import Studio from "./components/Studio";
 import SettingsView from "./components/Settings";
+import Onboarding from "./components/Onboarding";
 import type { LogLine } from "./types";
 import type { JobRow, UiSettings } from "./types";
 import { applyTheme, isThemeId, DEFAULT_THEME } from "./theme";
@@ -82,6 +83,8 @@ function clock(sec: number): number {
 const params = new URLSearchParams(window.location.search);
 const empty = params.has("empty");
 const showSettings = params.get("view") === "settings";
+const showOnboarding = params.get("view") === "onboarding";
+const mockKeys = (params.get("keys") ?? "").split(",");
 const rawTheme = params.get("theme");
 const themeParam = isThemeId(rawTheme) ? rawTheme : null;
 
@@ -101,6 +104,7 @@ createRoot(document.getElementById("root")!).render(
           subtitleStyle={DEFAULT_STYLE}
         onEditSubtitleStyle={() => {}}
         onThemeChange={(t) => applyTheme(t)}
+        onReplayTutorial={() => {}}
         />
       ) : (
         <Studio
@@ -119,8 +123,26 @@ createRoot(document.getElementById("root")!).render(
           onDeleteJob={() => {}}
           onPatchSettings={() => {}}
           onOpenSettings={() => {}}
+          keyWarning={empty ? { title: "Groq API anahtarı eksik.", text: "Bu anahtar olmadan altyazı üretilemez." } : null}
+          onFixKeys={() => {}}
         />
       )}
     </main>
+    {showOnboarding && (
+      <Onboarding
+        keys={{
+          groq: mockKeys.includes("groq"),
+          openrouter: mockKeys.includes("openrouter"),
+          stored: { groq: null, openrouter: null },
+          sources: { groq: null, openrouter: null },
+        }}
+        sttProvider="groq"
+        llmProvider="openrouter"
+        startAtKeys={params.get("step") === "keys"}
+        initialStep={Number(params.get("step")) || 0}
+        onKeysChanged={() => {}}
+        onDone={() => {}}
+      />
+    )}
   </div>,
 );
